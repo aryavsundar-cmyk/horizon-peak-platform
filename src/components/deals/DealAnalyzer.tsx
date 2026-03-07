@@ -33,6 +33,8 @@ import {
   HardHat,
   MapPin,
   Calculator,
+  SlidersHorizontal,
+  RotateCcw,
 } from 'lucide-react'
 import {
   PieChart as RePieChart,
@@ -112,6 +114,151 @@ interface ProjectTimeline {
 }
 
 type StrategyType = 'flip' | 'rental' | 'build-to-sell' | 'brrrr'
+
+// =============================================================================
+// Build-to-Sell Property Configuration Types & Value Matrix
+// =============================================================================
+
+type HomeType = 'ranch' | 'cape-cod' | 'colonial' | 'split-level' | 'contemporary'
+type GarageType = 'none' | '1-car-attached' | '2-car-attached' | '3-car-attached' | '2-car-detached'
+type QualityLevel = 'standard' | 'upgraded' | 'premium'
+
+interface PropertyBuildConfig {
+  homeType: HomeType
+  sqft: number
+  bedrooms: number
+  bathrooms: number
+  garage: GarageType
+  qualityLevel: QualityLevel
+  amenities: string[]
+}
+
+// Pike County / Pocono Region Value Matrix
+// Sources: Horizon Peak Business Plan sale comps ($220–$290/sqft), builder quotes ($140–$200/sqft)
+const PIKE_COUNTY_VALUES = {
+  buildCostPerSqft: {
+    standard: 145,   // Base modular, builder-grade finishes
+    upgraded: 170,   // Better fixtures, upgraded cabinets/trim
+    premium: 200,    // High-end finishes, custom features
+  } as Record<QualityLevel, number>,
+  arvPerSqft: {
+    standard: 225,   // Conservative — slightly above $220 comp
+    upgraded: 255,   // Market average — near $250 comp
+    premium: 285,    // Premium — near $290 best-case comp
+  } as Record<QualityLevel, number>,
+  homeType: {
+    'ranch':        { label: 'Ranch',        desc: 'Single-story, open layout',   costMult: 1.0,  arvMult: 0.98, typicalSqft: 1400, holdingMonths: 7 },
+    'cape-cod':     { label: 'Cape Cod',     desc: '1.5 story, dormered rooms',   costMult: 1.02, arvMult: 1.0,  typicalSqft: 1600, holdingMonths: 8 },
+    'colonial':     { label: 'Colonial',     desc: '2-story traditional',         costMult: 1.05, arvMult: 1.05, typicalSqft: 2200, holdingMonths: 9 },
+    'split-level':  { label: 'Split-Level',  desc: 'Multi-level, space efficient', costMult: 1.03, arvMult: 0.97, typicalSqft: 1800, holdingMonths: 8 },
+    'contemporary': { label: 'Contemporary', desc: 'Modern design, premium feel', costMult: 1.10, arvMult: 1.08, typicalSqft: 2000, holdingMonths: 9 },
+  } as Record<HomeType, { label: string; desc: string; costMult: number; arvMult: number; typicalSqft: number; holdingMonths: number }>,
+  garage: {
+    'none':            { label: 'No Garage',       cost: 0,     arv: 0 },
+    '1-car-attached':  { label: '1-Car Attached',  cost: 15000, arv: 20000 },
+    '2-car-attached':  { label: '2-Car Attached',  cost: 25000, arv: 38000 },
+    '3-car-attached':  { label: '3-Car Attached',  cost: 38000, arv: 52000 },
+    '2-car-detached':  { label: '2-Car Detached',  cost: 30000, arv: 35000 },
+  } as Record<GarageType, { label: string; cost: number; arv: number }>,
+  bedrooms: [
+    { count: 2, cost: -8000,  arv: -15000 },
+    { count: 3, cost: 0,      arv: 0 },
+    { count: 4, cost: 12000,  arv: 22000 },
+    { count: 5, cost: 25000,  arv: 40000 },
+  ],
+  bathrooms: [
+    { count: 1,   cost: -5000,  arv: -12000 },
+    { count: 1.5, cost: -2000,  arv: -6000 },
+    { count: 2,   cost: 0,      arv: 0 },
+    { count: 2.5, cost: 5000,   arv: 10000 },
+    { count: 3,   cost: 10000,  arv: 18000 },
+    { count: 3.5, cost: 16000,  arv: 25000 },
+  ],
+  amenities: [
+    { id: 'deck-patio',          label: 'Deck / Patio',            cost: 8000,  arv: 12000, category: 'Exterior' },
+    { id: 'covered-porch',       label: 'Covered Porch',           cost: 6000,  arv: 9000,  category: 'Exterior' },
+    { id: 'energy-star-windows', label: 'Energy Star Windows',     cost: 4000,  arv: 5500,  category: 'Exterior' },
+    { id: 'landscaping',         label: 'Landscaping Package',     cost: 5000,  arv: 8000,  category: 'Exterior' },
+    { id: 'paved-driveway',      label: 'Paved Driveway',          cost: 6000,  arv: 8000,  category: 'Exterior' },
+    { id: 'fireplace',           label: 'Fireplace',               cost: 5000,  arv: 8000,  category: 'Interior' },
+    { id: 'finished-basement',   label: 'Finished Basement',       cost: 25000, arv: 35000, category: 'Interior' },
+    { id: 'hardwood-floors',     label: 'Hardwood Floors',         cost: 6000,  arv: 9000,  category: 'Interior' },
+    { id: 'walk-in-closets',     label: 'Walk-in Closet(s)',       cost: 2000,  arv: 4000,  category: 'Interior' },
+    { id: 'main-floor-laundry',  label: 'Main Floor Laundry',      cost: 1500,  arv: 3000,  category: 'Interior' },
+    { id: 'granite-quartz',      label: 'Granite/Quartz Counters', cost: 4500,  arv: 7000,  category: 'Kitchen' },
+    { id: 'stainless-appliances',label: 'SS Appliances Package',   cost: 4000,  arv: 5500,  category: 'Kitchen' },
+    { id: 'central-air',         label: 'Central Air Conditioning', cost: 5000,  arv: 7000,  category: 'HVAC' },
+    { id: 'heat-pump',           label: 'Heat Pump / Mini-Split',  cost: 7000,  arv: 8500,  category: 'HVAC' },
+    { id: 'tankless-water-heater', label: 'Tankless Water Heater', cost: 2500,  arv: 3500,  category: 'Plumbing' },
+    { id: 'smart-home',          label: 'Smart Home Package',      cost: 3500,  arv: 5000,  category: 'Tech' },
+  ],
+  monthlyHolding: {
+    propertyTax: 250,  // Pike County avg for new construction
+    insurance: 150,     // Builder's risk / homeowner's
+    hoaDues: 100,       // CLCA $1,200/year = $100/month
+    utilities: 200,     // During construction phase
+  },
+}
+
+const DEFAULT_BUILD_CONFIG: PropertyBuildConfig = {
+  homeType: 'ranch',
+  sqft: 1600,
+  bedrooms: 3,
+  bathrooms: 2,
+  garage: '2-car-attached',
+  qualityLevel: 'upgraded',
+  amenities: ['central-air', 'granite-quartz', 'stainless-appliances', 'energy-star-windows'],
+}
+
+function computeBuildValues(config: PropertyBuildConfig) {
+  const v = PIKE_COUNTY_VALUES
+  const typeData = v.homeType[config.homeType]
+  const garageData = v.garage[config.garage]
+
+  // Base costs from sqft × rate × home type multiplier
+  const baseCost = Math.round(config.sqft * v.buildCostPerSqft[config.qualityLevel] * typeData.costMult)
+  const baseARV = Math.round(config.sqft * v.arvPerSqft[config.qualityLevel] * typeData.arvMult)
+
+  // Bedroom / bathroom adjustments (base = 3 bed / 2 bath)
+  const bedAdj = v.bedrooms.find(b => b.count === config.bedrooms) || { cost: 0, arv: 0 }
+  const bathAdj = v.bathrooms.find(b => b.count === config.bathrooms) || { cost: 0, arv: 0 }
+
+  // Amenity totals
+  let amenityCost = 0
+  let amenityARV = 0
+  config.amenities.forEach(id => {
+    const amenity = v.amenities.find(a => a.id === id)
+    if (amenity) {
+      amenityCost += amenity.cost
+      amenityARV += amenity.arv
+    }
+  })
+
+  const totalBuildCost = baseCost + garageData.cost + bedAdj.cost + bathAdj.cost + amenityCost
+  const estimatedARV = baseARV + garageData.arv + bedAdj.arv + bathAdj.arv + amenityARV
+
+  // Holding period: base from home type + size adjustments
+  let holdingMonths = typeData.holdingMonths
+  if (config.sqft > 2500) holdingMonths += 2
+  else if (config.sqft > 2000) holdingMonths += 1
+
+  // Monthly holding cost (excluding loan interest which is computed separately)
+  const monthlyHoldingCost = v.monthlyHolding.propertyTax + v.monthlyHolding.insurance + v.monthlyHolding.hoaDues + v.monthlyHolding.utilities
+
+  return { totalBuildCost, estimatedARV, holdingMonths, monthlyHoldingCost }
+}
+
+function generateBuildToSellRenovation(totalBuildCost: number): RenovationLineItem[] {
+  return [
+    { id: 'r1', category: 'Site Preparation', description: 'Clearing, grading, driveway, well/septic', laborCost: Math.round(totalBuildCost * 0.18), materialCost: Math.round(totalBuildCost * 0.07), contingency: Math.round(totalBuildCost * 0.025) },
+    { id: 'r2', category: 'Foundation', description: 'Concrete slab/crawl space, footings', laborCost: Math.round(totalBuildCost * 0.08), materialCost: Math.round(totalBuildCost * 0.12), contingency: Math.round(totalBuildCost * 0.02) },
+    { id: 'r3', category: 'Modular/Structure', description: 'Home unit purchase, delivery, and set', laborCost: Math.round(totalBuildCost * 0.05), materialCost: Math.round(totalBuildCost * 0.35), contingency: Math.round(totalBuildCost * 0.03) },
+    { id: 'r4', category: 'Mechanical/Utilities', description: 'HVAC, plumbing, electrical connections', laborCost: Math.round(totalBuildCost * 0.08), materialCost: Math.round(totalBuildCost * 0.04), contingency: Math.round(totalBuildCost * 0.015) },
+    { id: 'r5', category: 'Finishes & Fixtures', description: 'Interior upgrades, appliances, flooring', laborCost: Math.round(totalBuildCost * 0.04), materialCost: Math.round(totalBuildCost * 0.06), contingency: Math.round(totalBuildCost * 0.01) },
+    { id: 'r6', category: 'Exterior & Landscaping', description: 'Siding, deck, landscaping, grading', laborCost: Math.round(totalBuildCost * 0.04), materialCost: Math.round(totalBuildCost * 0.03), contingency: Math.round(totalBuildCost * 0.01) },
+    { id: 'r7', category: 'Permits & Inspections', description: 'Township, CLCA review, final CO', laborCost: 0, materialCost: Math.round(totalBuildCost * 0.01), contingency: Math.round(totalBuildCost * 0.005) },
+  ]
+}
 
 // =============================================================================
 // Default Data Generators
@@ -319,6 +466,43 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
   const [holdingMonths, setHoldingMonths] = useState(isLand ? 8 : 5)
   const [monthlyHoldingCost, setMonthlyHoldingCost] = useState(1800)
   const [monthlyRentalIncome, setMonthlyRentalIncome] = useState(2200)
+
+  // ---------------------------------------------------------------------------
+  // Build-to-Sell Property Configuration
+  // ---------------------------------------------------------------------------
+  const [buildConfig, setBuildConfig] = useState<PropertyBuildConfig>({ ...DEFAULT_BUILD_CONFIG })
+
+  const buildValues = useMemo(() => computeBuildValues(buildConfig), [buildConfig])
+
+  const updateBuildConfig = useCallback((updates: Partial<PropertyBuildConfig>) => {
+    const updated = { ...buildConfig, ...updates }
+    // Auto-adjust sqft when home type changes
+    if (updates.homeType && updates.homeType !== buildConfig.homeType) {
+      updated.sqft = PIKE_COUNTY_VALUES.homeType[updates.homeType].typicalSqft
+    }
+    // Enforce CLCA minimum 1,200 sqft
+    if (updated.sqft < 1200) updated.sqft = 1200
+    setBuildConfig(updated)
+    // Auto-populate investment assumptions from config
+    const values = computeBuildValues(updated)
+    setAfterRepairValue(values.estimatedARV)
+    setHoldingMonths(values.holdingMonths)
+    setMonthlyHoldingCost(values.monthlyHoldingCost)
+    setRenovation(generateBuildToSellRenovation(values.totalBuildCost))
+  }, [buildConfig])
+
+  const toggleBuildAmenity = useCallback((id: string) => {
+    const newAmenities = buildConfig.amenities.includes(id)
+      ? buildConfig.amenities.filter(a => a !== id)
+      : [...buildConfig.amenities, id]
+    const updated = { ...buildConfig, amenities: newAmenities }
+    setBuildConfig(updated)
+    const values = computeBuildValues(updated)
+    setAfterRepairValue(values.estimatedARV)
+    setHoldingMonths(values.holdingMonths)
+    setMonthlyHoldingCost(values.monthlyHoldingCost)
+    setRenovation(generateBuildToSellRenovation(values.totalBuildCost))
+  }, [buildConfig])
 
   // ---------------------------------------------------------------------------
   // Renovation
@@ -625,6 +809,252 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
           )}
         </div>
       </div>
+
+      {/* ========== Build-to-Sell Property Configuration ========== */}
+      {strategy === 'build-to-sell' && (
+        <div className="bg-gradient-to-br from-slate-800 via-slate-800 to-teal-900/10 border border-teal-500/20 rounded-xl p-5 mb-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-teal-500/15 flex items-center justify-center">
+                <SlidersHorizontal className="w-5 h-5 text-teal-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Property Build Configuration</h3>
+                <p className="text-xs text-slate-500">Select property features — estimates auto-update as you configure</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setBuildConfig({ ...DEFAULT_BUILD_CONFIG })
+                const values = computeBuildValues(DEFAULT_BUILD_CONFIG)
+                setAfterRepairValue(values.estimatedARV)
+                setHoldingMonths(values.holdingMonths)
+                setMonthlyHoldingCost(values.monthlyHoldingCost)
+                setRenovation(generateBuildToSellRenovation(values.totalBuildCost))
+              }}
+              className="text-xs text-slate-500 hover:text-teal-400 flex items-center gap-1.5 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Reset Defaults
+            </button>
+          </div>
+
+          {/* Home Type */}
+          <div className="mb-4">
+            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Home Type</label>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {(Object.entries(PIKE_COUNTY_VALUES.homeType) as [HomeType, (typeof PIKE_COUNTY_VALUES.homeType)[HomeType]][]).map(([key, data]) => (
+                <button
+                  key={key}
+                  onClick={() => updateBuildConfig({ homeType: key })}
+                  className={cn(
+                    'p-3 rounded-lg border text-left transition-all',
+                    buildConfig.homeType === key
+                      ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                      : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                  )}
+                >
+                  <p className="text-sm font-semibold">{data.label}</p>
+                  <p className="text-[10px] text-slate-500">{data.desc}</p>
+                  <p className="text-[10px] text-slate-600 mt-0.5">~{data.typicalSqft.toLocaleString()} sqft</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Size & Layout Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Square Footage */}
+            <div>
+              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Square Footage</label>
+              <input
+                type="number"
+                value={buildConfig.sqft}
+                onChange={e => updateBuildConfig({ sqft: Math.max(Number(e.target.value), 1200) })}
+                min={1200}
+                max={5000}
+                step={100}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
+              />
+              <p className="text-[10px] text-slate-600 mt-1">Min 1,200 sqft (CLCA requirement)</p>
+            </div>
+
+            {/* Bedrooms */}
+            <div>
+              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Bedrooms</label>
+              <div className="flex gap-1.5">
+                {[2, 3, 4, 5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => updateBuildConfig({ bedrooms: n })}
+                    className={cn(
+                      'flex-1 py-2 rounded-lg border text-sm font-semibold transition-all',
+                      buildConfig.bedrooms === n
+                        ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                        : 'bg-slate-900/50 border-slate-700 text-slate-500 hover:border-slate-600'
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Bathrooms */}
+            <div>
+              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Bathrooms</label>
+              <div className="flex gap-1.5">
+                {[1, 1.5, 2, 2.5, 3, 3.5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => updateBuildConfig({ bathrooms: n })}
+                    className={cn(
+                      'flex-1 py-2 rounded-lg border text-xs font-semibold transition-all',
+                      buildConfig.bathrooms === n
+                        ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                        : 'bg-slate-900/50 border-slate-700 text-slate-500 hover:border-slate-600'
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Garage */}
+          <div className="mb-4">
+            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Garage</label>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {(Object.entries(PIKE_COUNTY_VALUES.garage) as [GarageType, (typeof PIKE_COUNTY_VALUES.garage)[GarageType]][]).map(([key, data]) => (
+                <button
+                  key={key}
+                  onClick={() => updateBuildConfig({ garage: key })}
+                  className={cn(
+                    'py-2.5 px-3 rounded-lg border text-sm font-medium transition-all text-center',
+                    buildConfig.garage === key
+                      ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                      : 'bg-slate-900/50 border-slate-700 text-slate-500 hover:border-slate-600'
+                  )}
+                >
+                  {data.label}
+                  {data.arv > 0 && <span className="block text-[10px] text-slate-600">+{formatCurrency(data.arv)} ARV</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Quality Level */}
+          <div className="mb-4">
+            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Quality Level</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'standard' as QualityLevel, label: 'Standard', desc: 'Base finishes, builder-grade fixtures', cost: PIKE_COUNTY_VALUES.buildCostPerSqft.standard, arv: PIKE_COUNTY_VALUES.arvPerSqft.standard },
+                { key: 'upgraded' as QualityLevel, label: 'Upgraded', desc: 'Better cabinets, upgraded fixtures & trim', cost: PIKE_COUNTY_VALUES.buildCostPerSqft.upgraded, arv: PIKE_COUNTY_VALUES.arvPerSqft.upgraded },
+                { key: 'premium' as QualityLevel, label: 'Premium', desc: 'High-end finishes, custom features', cost: PIKE_COUNTY_VALUES.buildCostPerSqft.premium, arv: PIKE_COUNTY_VALUES.arvPerSqft.premium },
+              ]).map(q => (
+                <button
+                  key={q.key}
+                  onClick={() => updateBuildConfig({ qualityLevel: q.key })}
+                  className={cn(
+                    'p-3 rounded-lg border text-left transition-all',
+                    buildConfig.qualityLevel === q.key
+                      ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                      : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                  )}
+                >
+                  <p className="text-sm font-semibold">{q.label}</p>
+                  <p className="text-[10px] text-slate-500">{q.desc}</p>
+                  <p className="text-[10px] text-teal-500/70 mt-0.5">Build: ${q.cost}/sqft &middot; ARV: ${q.arv}/sqft</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Amenities & Upgrades */}
+          <div className="mb-4">
+            <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 block">Amenities & Upgrades</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-0">
+              {(() => {
+                const categories = [...new Set(PIKE_COUNTY_VALUES.amenities.map(a => a.category))]
+                return categories.map(cat => (
+                  <div key={cat} className="mb-3">
+                    <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold mb-1.5 border-b border-slate-700/50 pb-1">{cat}</p>
+                    {PIKE_COUNTY_VALUES.amenities.filter(a => a.category === cat).map(amenity => (
+                      <label
+                        key={amenity.id}
+                        className="flex items-center gap-2.5 py-1.5 cursor-pointer group"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={buildConfig.amenities.includes(amenity.id)}
+                          onChange={() => toggleBuildAmenity(amenity.id)}
+                          className="sr-only"
+                        />
+                        <div
+                          className={cn(
+                            'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all',
+                            buildConfig.amenities.includes(amenity.id)
+                              ? 'bg-teal-500 border-teal-500 text-white'
+                              : 'border-slate-600 bg-slate-900/50 group-hover:border-slate-500'
+                          )}
+                        >
+                          {buildConfig.amenities.includes(amenity.id) && (
+                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
+                              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className={cn(
+                          'text-sm transition-colors flex-1',
+                          buildConfig.amenities.includes(amenity.id) ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'
+                        )}>
+                          {amenity.label}
+                        </span>
+                        <span className="text-[10px] text-slate-600">+{formatCurrency(amenity.arv)}</span>
+                      </label>
+                    ))}
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+
+          {/* Auto-Computed Summary */}
+          <div className="bg-slate-900/60 border border-slate-700/50 rounded-lg p-4 mt-2">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="w-4 h-4 text-teal-400" />
+              <p className="text-xs text-teal-400 font-semibold uppercase tracking-wider">Auto-Computed Estimates (Pike County Averages)</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase">Est. Build Cost</p>
+                <p className="text-lg font-bold text-amber-400">{formatCurrency(buildValues.totalBuildCost)}</p>
+                <p className="text-[10px] text-slate-600">{formatCurrency(Math.round(buildValues.totalBuildCost / buildConfig.sqft))}/sqft</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase">Est. After-Built Value</p>
+                <p className="text-lg font-bold text-emerald-400">{formatCurrency(buildValues.estimatedARV)}</p>
+                <p className="text-[10px] text-slate-600">{formatCurrency(Math.round(buildValues.estimatedARV / buildConfig.sqft))}/sqft</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase">Construction + Sale</p>
+                <p className="text-lg font-bold text-cyan-400">{buildValues.holdingMonths} months</p>
+                <p className="text-[10px] text-slate-600">Build + marketing period</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 uppercase">Monthly Holding Cost</p>
+                <p className="text-lg font-bold text-orange-400">{formatCurrency(buildValues.monthlyHoldingCost)}</p>
+                <p className="text-[10px] text-slate-600">Tax + ins. + HOA + utilities</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-600 mt-3 italic">
+              Values based on Pike County/Pocono region averages from Horizon Peak Business Plan sale comps ($220&ndash;$290/sqft) and builder quotes ($140&ndash;$200/sqft).
+              All values auto-populate the Investment Assumptions above &mdash; override anytime by editing the fields directly.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ========== Quick Calculator Links ========== */}
       {openDealInCalculator && (
