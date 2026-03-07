@@ -128,11 +128,21 @@ function cashFlowColor(value: number): string {
 // Tab 1: Construction Loan Calculator
 // ---------------------------------------------------------------------------
 
-function ConstructionLoanCalculator() {
-  const [sqft, setSqft] = useState(2000)
+interface DealDefaults {
+  purchasePrice: number
+  arv: number
+  rehabCost: number
+  sqft: number
+  monthlyRent: number
+  isLand: boolean
+  address: string
+}
+
+function ConstructionLoanCalculator({ dealDefaults }: { dealDefaults?: DealDefaults | null }) {
+  const [sqft, setSqft] = useState(dealDefaults?.sqft || 2000)
   const [costPerSqft, setCostPerSqft] = useState(160)
-  const [landValue, setLandValue] = useState(50000)
-  const [downPayment, setDownPayment] = useState(80000)
+  const [landValue, setLandValue] = useState(dealDefaults?.isLand ? dealDefaults.purchasePrice : 50000)
+  const [downPayment, setDownPayment] = useState(dealDefaults ? Math.round(dealDefaults.purchasePrice * 0.15) : 80000)
   const [interestRate, setInterestRate] = useState(7.5)
   const [timeline, setTimeline] = useState(6)
   const [selectedBank, setSelectedBank] = useState(0)
@@ -346,11 +356,11 @@ function ConstructionLoanCalculator() {
 // Tab 2: Rental Property Analyzer
 // ---------------------------------------------------------------------------
 
-function RentalPropertyAnalyzer() {
-  const [purchasePrice, setPurchasePrice] = useState(350000)
+function RentalPropertyAnalyzer({ dealDefaults }: { dealDefaults?: DealDefaults | null }) {
+  const [purchasePrice, setPurchasePrice] = useState(dealDefaults ? dealDefaults.purchasePrice + dealDefaults.rehabCost : 350000)
   const [downPaymentPct, setDownPaymentPct] = useState(20)
   const [interestRate, setInterestRate] = useState(7.0)
-  const [monthlyRent, setMonthlyRent] = useState(2200)
+  const [monthlyRent, setMonthlyRent] = useState(dealDefaults?.monthlyRent || 2200)
   const [vacancyRate, setVacancyRate] = useState(8)
   const [propertyTax, setPropertyTax] = useState(4200)
   const [insurance, setInsurance] = useState(1800)
@@ -561,12 +571,12 @@ function RentalPropertyAnalyzer() {
 // Tab 3: Flip / Rehab Calculator
 // ---------------------------------------------------------------------------
 
-function FlipRehabCalculator() {
-  const [purchasePrice, setPurchasePrice] = useState(200000)
-  const [rehabBudget, setRehabBudget] = useState(50000)
+function FlipRehabCalculator({ dealDefaults }: { dealDefaults?: DealDefaults | null }) {
+  const [purchasePrice, setPurchasePrice] = useState(dealDefaults?.purchasePrice || 200000)
+  const [rehabBudget, setRehabBudget] = useState(dealDefaults?.rehabCost || 50000)
   const [holdingCostsMonth, setHoldingCostsMonth] = useState(2500)
   const [holdingPeriod, setHoldingPeriod] = useState(4)
-  const [arv, setArv] = useState(350000)
+  const [arv, setArv] = useState(dealDefaults?.arv || 350000)
   const [closingBuyPct, setClosingBuyPct] = useState(2)
   const [closingSellPct, setClosingSellPct] = useState(2)
   const [agentCommission, setAgentCommission] = useState(5)
@@ -735,9 +745,9 @@ function FlipRehabCalculator() {
 // Tab 4: Wholesale Calculator
 // ---------------------------------------------------------------------------
 
-function WholesaleCalculator() {
-  const [arvW, setArvW] = useState(350000)
-  const [rehabEstimate, setRehabEstimate] = useState(50000)
+function WholesaleCalculator({ dealDefaults }: { dealDefaults?: DealDefaults | null }) {
+  const [arvW, setArvW] = useState(dealDefaults?.arv || 350000)
+  const [rehabEstimate, setRehabEstimate] = useState(dealDefaults?.rehabCost || 50000)
   const [investorProfitPct, setInvestorProfitPct] = useState(30)
   const [assignmentFee, setAssignmentFee] = useState(10000)
 
@@ -881,11 +891,11 @@ function WholesaleCalculator() {
 // Tab 5: BRRRR Calculator
 // ---------------------------------------------------------------------------
 
-function BRRRRCalculator() {
-  const [purchasePrice, setPurchasePrice] = useState(180000)
-  const [rehabCost, setRehabCost] = useState(40000)
-  const [arvB, setArvB] = useState(300000)
-  const [rentMonth, setRentMonth] = useState(2000)
+function BRRRRCalculator({ dealDefaults }: { dealDefaults?: DealDefaults | null }) {
+  const [purchasePrice, setPurchasePrice] = useState(dealDefaults?.purchasePrice || 180000)
+  const [rehabCost, setRehabCost] = useState(dealDefaults?.rehabCost || 40000)
+  const [arvB, setArvB] = useState(dealDefaults?.arv || 300000)
+  const [rentMonth, setRentMonth] = useState(dealDefaults?.monthlyRent || 2000)
   const [refiLtv, setRefiLtv] = useState(75)
   const [interestRateB, setInterestRateB] = useState(7.0)
   const [propertyTaxB, setPropertyTaxB] = useState(3600)
@@ -1140,8 +1150,41 @@ const TABS: TabDef[] = [
   { id: 'brrrr', label: 'BRRRR', icon: <PiggyBank className="w-4 h-4" /> },
 ]
 
-export default function CalculatorSuite() {
-  const [activeTab, setActiveTab] = useState<TabId>('construction')
+interface CalculatorSuiteProps {
+  initialDeal?: import('../../data/store').Deal | null
+  initialTab?: string | null
+  onDealConsumed?: () => void
+}
+
+export default function CalculatorSuite({ initialDeal, initialTab, onDealConsumed }: CalculatorSuiteProps = {}) {
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    if (initialTab && ['construction', 'rental', 'flip', 'wholesale', 'brrrr'].includes(initialTab)) {
+      return initialTab as TabId
+    }
+    if (initialDeal) {
+      const isLand = initialDeal.sqft === 0 && initialDeal.beds === 0
+      return isLand ? 'construction' : 'flip'
+    }
+    return 'construction'
+  })
+
+  // If deal was passed, extract defaults
+  const dealDefaults = initialDeal ? {
+    purchasePrice: initialDeal.listPrice,
+    arv: initialDeal.estimatedARV || Math.round(initialDeal.listPrice * 1.6),
+    rehabCost: initialDeal.estimatedRehab || 60000,
+    sqft: initialDeal.sqft || 2000,
+    monthlyRent: initialDeal.cashFlow ? Math.round(initialDeal.cashFlow / 0.4) : 2200,
+    isLand: initialDeal.sqft === 0 && initialDeal.beds === 0,
+    address: `${initialDeal.address}, ${initialDeal.city}, ${initialDeal.state}`,
+  } : null
+
+  // Notify parent the deal has been consumed
+  React.useEffect(() => {
+    if (initialDeal && onDealConsumed) {
+      // We don't clear immediately - let the calculator use the values first
+    }
+  }, [initialDeal, onDealConsumed])
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 md:p-6 lg:p-8">
@@ -1154,6 +1197,18 @@ export default function CalculatorSuite() {
         <p className="text-sm text-slate-400 mt-1">
           Comprehensive real estate analysis tools for Horizon Peak Capital
         </p>
+        {dealDefaults && (
+          <div className="mt-2 bg-purple-500/10 border border-purple-500/30 rounded-lg px-3 py-2 flex items-center gap-2">
+            <span className="text-xs text-purple-300">
+              📍 Pre-loaded from Deal Analyzer: <span className="font-semibold text-white">{dealDefaults.address}</span> — {formatCurrency(dealDefaults.purchasePrice)} | ARV: {formatCurrency(dealDefaults.arv)}
+            </span>
+            {onDealConsumed && (
+              <button onClick={onDealConsumed} className="text-xs text-purple-400 hover:text-purple-300 ml-auto underline">
+                Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tab Bar */}
@@ -1176,11 +1231,11 @@ export default function CalculatorSuite() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'construction' && <ConstructionLoanCalculator />}
-        {activeTab === 'rental' && <RentalPropertyAnalyzer />}
-        {activeTab === 'flip' && <FlipRehabCalculator />}
-        {activeTab === 'wholesale' && <WholesaleCalculator />}
-        {activeTab === 'brrrr' && <BRRRRCalculator />}
+        {activeTab === 'construction' && <ConstructionLoanCalculator dealDefaults={dealDefaults} />}
+        {activeTab === 'rental' && <RentalPropertyAnalyzer dealDefaults={dealDefaults} />}
+        {activeTab === 'flip' && <FlipRehabCalculator dealDefaults={dealDefaults} />}
+        {activeTab === 'wholesale' && <WholesaleCalculator dealDefaults={dealDefaults} />}
+        {activeTab === 'brrrr' && <BRRRRCalculator dealDefaults={dealDefaults} />}
       </div>
     </div>
   )

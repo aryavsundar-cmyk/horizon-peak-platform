@@ -19,11 +19,13 @@ import {
   Link2,
   AlertCircle,
   Zap,
+  Sparkles,
 } from 'lucide-react'
 import { formatCurrency, formatPercent, cn } from '../../lib/utils'
 import { Deal, SAMPLE_DEALS } from '../../data/store'
 import { getSettings, hasApiKey } from '../../lib/settings-store'
 import ImportUrlModal from './ImportUrlModal'
+import DealAnalyzer from './DealAnalyzer'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -202,9 +204,10 @@ interface DealCardProps {
   deal: Deal
   onToggleSave: (id: string) => void
   onUpdateNote: (id: string, note: string) => void
+  onAnalyze: (deal: Deal) => void
 }
 
-function DealCard({ deal, onToggleSave, onUpdateNote }: DealCardProps) {
+function DealCard({ deal, onToggleSave, onUpdateNote, onAnalyze }: DealCardProps) {
   const [localNote, setLocalNote] = useState(deal.notes ?? '')
   const roi = computeROI(deal)
   const propertyType = inferPropertyType(deal)
@@ -364,6 +367,13 @@ function DealCard({ deal, onToggleSave, onUpdateNote }: DealCardProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={() => onAnalyze(deal)}
+            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 border border-purple-600/30 rounded-lg py-2 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Analyze Deal
+          </button>
           <a
             href={deal.url}
             target="_blank"
@@ -585,6 +595,7 @@ export default function DealFinder() {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [savedPanelOpen, setSavedPanelOpen] = useState(false)
   const [sortBy, setSortBy] = useState<'score' | 'price-asc' | 'price-desc' | 'dom' | 'roi'>('score')
+  const [analyzingDeal, setAnalyzingDeal] = useState<Deal | null>(null)
 
   // --- API integration state ---
   const [isSearching, setIsSearching] = useState(false)
@@ -802,6 +813,16 @@ export default function DealFinder() {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+
+  // --- If analyzing a deal, show the DealAnalyzer ---
+  if (analyzingDeal) {
+    return (
+      <DealAnalyzer
+        deal={analyzingDeal}
+        onBack={() => setAnalyzingDeal(null)}
+      />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
@@ -1216,6 +1237,7 @@ export default function DealFinder() {
                 deal={deal}
                 onToggleSave={toggleSave}
                 onUpdateNote={updateNote}
+                onAnalyze={setAnalyzingDeal}
               />
             ))}
           </div>

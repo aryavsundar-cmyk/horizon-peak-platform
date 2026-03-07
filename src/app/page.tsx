@@ -47,6 +47,15 @@ export default function Home() {
   const [properties, setProperties] = useState<Property[]>(SAMPLE_PROPERTIES)
   const [deals, setDeals] = useState<Deal[]>(SAMPLE_DEALS)
   const [goals, setGoals] = useState<Goal[]>(SAMPLE_GOALS)
+  const [calculatorDeal, setCalculatorDeal] = useState<Deal | null>(null)
+  const [calculatorTab, setCalculatorTab] = useState<string | null>(null)
+
+  // Cross-view navigation: open a deal in the calculator suite
+  const openDealInCalculator = (deal: Deal, tab?: string) => {
+    setCalculatorDeal(deal)
+    setCalculatorTab(tab || null)
+    setActiveView('calculators')
+  }
 
   const grouped = useMemo(() => {
     const map: Record<string, typeof NAV_ITEMS> = {}
@@ -58,7 +67,7 @@ export default function Home() {
   }, [])
 
   return (
-    <AppContext.Provider value={{ properties, deals, goals, setProperties, setDeals, setGoals }}>
+    <AppContext.Provider value={{ properties, deals, goals, setProperties, setDeals, setGoals, openDealInCalculator }}>
       <div className="flex min-h-screen">
         {/* Sidebar */}
         <aside
@@ -150,7 +159,7 @@ export default function Home() {
               </h2>
               <p className="text-xs text-slate-500">
                 {activeView === 'dashboard' && 'Portfolio overview and key performance indicators'}
-                {activeView === 'deals' && 'Search and analyze deals nationwide'}
+                {activeView === 'deals' && 'Search, analyze, and model deals nationwide'}
                 {activeView === 'calculators' && 'Construction, rental, flip, wholesale & BRRRR calculators'}
                 {activeView === 'projects' && 'Manage properties, vendors, milestones & budgets'}
                 {activeView === 'market' && 'Market data, restrictions, and econometric analysis'}
@@ -175,7 +184,7 @@ export default function Home() {
           <main className="p-6">
             {activeView === 'dashboard' && <DashboardView />}
             {activeView === 'deals' && <DealFinder />}
-            {activeView === 'calculators' && <CalculatorSuite />}
+            {activeView === 'calculators' && <CalculatorSuite initialDeal={calculatorDeal} initialTab={calculatorTab} onDealConsumed={() => { setCalculatorDeal(null); setCalculatorTab(null) }} />}
             {activeView === 'projects' && <ProjectManager />}
             {activeView === 'market' && <MarketAnalysis />}
             {activeView === 'settings' && <SettingsView />}

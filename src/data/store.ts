@@ -189,6 +189,7 @@ export const AppContext = createContext<{
   setProperties: (p: Property[]) => void
   setDeals: (d: Deal[]) => void
   setGoals: (g: Goal[]) => void
+  openDealInCalculator?: (deal: Deal, tab?: string) => void
 } | null>(null)
 
 export function useAppState() {
