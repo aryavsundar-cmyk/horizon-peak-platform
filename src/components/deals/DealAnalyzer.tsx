@@ -123,6 +123,13 @@ type HomeType = 'ranch' | 'cape-cod' | 'colonial' | 'split-level' | 'contemporar
 type GarageType = 'none' | '1-car-attached' | '2-car-attached' | '3-car-attached' | '2-car-detached'
 type QualityLevel = 'standard' | 'upgraded' | 'premium'
 
+interface CustomAmenity {
+  id: string
+  label: string
+  cost: number
+  arv: number
+}
+
 interface PropertyBuildConfig {
   homeType: HomeType
   sqft: number
@@ -131,6 +138,7 @@ interface PropertyBuildConfig {
   garage: GarageType
   qualityLevel: QualityLevel
   amenities: string[]
+  customAmenities: CustomAmenity[]
 }
 
 // Pike County / Pocono Region Value Matrix
@@ -208,6 +216,7 @@ const DEFAULT_BUILD_CONFIG: PropertyBuildConfig = {
   garage: '2-car-attached',
   qualityLevel: 'upgraded',
   amenities: ['central-air', 'granite-quartz', 'stainless-appliances', 'energy-star-windows'],
+  customAmenities: [],
 }
 
 function computeBuildValues(config: PropertyBuildConfig) {
@@ -223,7 +232,7 @@ function computeBuildValues(config: PropertyBuildConfig) {
   const bedAdj = v.bedrooms.find(b => b.count === config.bedrooms) || { cost: 0, arv: 0 }
   const bathAdj = v.bathrooms.find(b => b.count === config.bathrooms) || { cost: 0, arv: 0 }
 
-  // Amenity totals
+  // Amenity totals (preset + custom)
   let amenityCost = 0
   let amenityARV = 0
   config.amenities.forEach(id => {
@@ -232,6 +241,10 @@ function computeBuildValues(config: PropertyBuildConfig) {
       amenityCost += amenity.cost
       amenityARV += amenity.arv
     }
+  })
+  config.customAmenities.forEach(ca => {
+    amenityCost += ca.cost
+    amenityARV += ca.arv
   })
 
   const totalBuildCost = baseCost + garageData.cost + bedAdj.cost + bathAdj.cost + amenityCost
@@ -496,6 +509,40 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
       ? buildConfig.amenities.filter(a => a !== id)
       : [...buildConfig.amenities, id]
     const updated = { ...buildConfig, amenities: newAmenities }
+    setBuildConfig(updated)
+    const values = computeBuildValues(updated)
+    setAfterRepairValue(values.estimatedARV)
+    setHoldingMonths(values.holdingMonths)
+    setMonthlyHoldingCost(values.monthlyHoldingCost)
+    setRenovation(generateBuildToSellRenovation(values.totalBuildCost))
+  }, [buildConfig])
+
+  const addCustomAmenity = useCallback(() => {
+    const newItem: CustomAmenity = { id: `ca-${Date.now()}`, label: '', cost: 0, arv: 0 }
+    const updated = { ...buildConfig, customAmenities: [...buildConfig.customAmenities, newItem] }
+    setBuildConfig(updated)
+  }, [buildConfig])
+
+  const updateCustomAmenity = useCallback((id: string, field: keyof CustomAmenity, value: string | number) => {
+    const updated = {
+      ...buildConfig,
+      customAmenities: buildConfig.customAmenities.map(ca =>
+        ca.id === id ? { ...ca, [field]: value } : ca
+      ),
+    }
+    setBuildConfig(updated)
+    const values = computeBuildValues(updated)
+    setAfterRepairValue(values.estimatedARV)
+    setHoldingMonths(values.holdingMonths)
+    setMonthlyHoldingCost(values.monthlyHoldingCost)
+    setRenovation(generateBuildToSellRenovation(values.totalBuildCost))
+  }, [buildConfig])
+
+  const removeCustomAmenity = useCallback((id: string) => {
+    const updated = {
+      ...buildConfig,
+      customAmenities: buildConfig.customAmenities.filter(ca => ca.id !== id),
+    }
     setBuildConfig(updated)
     const values = computeBuildValues(updated)
     setAfterRepairValue(values.estimatedARV)
@@ -1017,6 +1064,62 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
                   </div>
                 ))
               })()}
+            </div>
+
+            {/* Custom / Miscellaneous Amenities */}
+            <div className="mt-3 border-t border-slate-700/50 pt-3">
+              <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold mb-2">Custom / Miscellaneous</p>
+              {buildConfig.customAmenities.map(ca => (
+                <div key={ca.id} className="flex items-center gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={ca.label}
+                    onChange={e => updateCustomAmenity(ca.id, 'label', e.target.value)}
+                    placeholder="e.g. Pool, Outdoor Kitchen, Sauna..."
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
+                  />
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-500 whitespace-nowrap">Cost</span>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
+                      <input
+                        type="number"
+                        value={ca.cost}
+                        onChange={e => updateCustomAmenity(ca.id, 'cost', Number(e.target.value))}
+                        step={1000}
+                        min={0}
+                        className="w-24 bg-slate-900 border border-slate-700 rounded-lg pl-5 pr-2 py-1.5 text-sm text-amber-400 font-medium focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-500 whitespace-nowrap">ARV</span>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
+                      <input
+                        type="number"
+                        value={ca.arv}
+                        onChange={e => updateCustomAmenity(ca.id, 'arv', Number(e.target.value))}
+                        step={1000}
+                        min={0}
+                        className="w-24 bg-slate-900 border border-slate-700 rounded-lg pl-5 pr-2 py-1.5 text-sm text-emerald-400 font-medium focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeCustomAmenity(ca.id)}
+                    className="p-1 text-slate-600 hover:text-red-400 transition-colors shrink-0"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addCustomAmenity}
+                className="flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 font-medium mt-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Custom Item
+              </button>
             </div>
           </div>
 
