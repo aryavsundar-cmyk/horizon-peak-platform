@@ -128,7 +128,14 @@ interface CustomAmenity {
   label: string
   cost: number
   arv: number
+  arvOverridden: boolean
 }
+
+// Custom amenity default ARV multiplier — based on average recovery rates for
+// discretionary add-ons in Pike County new construction (pools ~60-75%,
+// outdoor kitchens ~70-80%). Preset amenities average ~1.5x, but custom/misc
+// items are more niche and typically recover a lower fraction of their cost.
+const CUSTOM_AMENITY_ARV_MULTIPLIER = 0.70
 
 interface PropertyBuildConfig {
   homeType: HomeType
@@ -518,16 +525,41 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
   }, [buildConfig])
 
   const addCustomAmenity = useCallback(() => {
-    const newItem: CustomAmenity = { id: `ca-${Date.now()}`, label: '', cost: 0, arv: 0 }
+    const newItem: CustomAmenity = { id: `ca-${Date.now()}`, label: '', cost: 0, arv: 0, arvOverridden: false }
     const updated = { ...buildConfig, customAmenities: [...buildConfig.customAmenities, newItem] }
     setBuildConfig(updated)
   }, [buildConfig])
 
-  const updateCustomAmenity = useCallback((id: string, field: keyof CustomAmenity, value: string | number) => {
+  const updateCustomAmenity = useCallback((id: string, field: keyof CustomAmenity, value: string | number | boolean) => {
+    const updated = {
+      ...buildConfig,
+      customAmenities: buildConfig.customAmenities.map(ca => {
+        if (ca.id !== id) return ca
+        const patched = { ...ca, [field]: value }
+        // When cost changes and ARV hasn't been manually overridden, auto-scale ARV
+        if (field === 'cost' && !ca.arvOverridden) {
+          patched.arv = Math.round(Number(value) * CUSTOM_AMENITY_ARV_MULTIPLIER)
+        }
+        // When user directly edits ARV, mark it as overridden
+        if (field === 'arv') {
+          patched.arvOverridden = true
+        }
+        return patched
+      }),
+    }
+    setBuildConfig(updated)
+    const values = computeBuildValues(updated)
+    setAfterRepairValue(values.estimatedARV)
+    setHoldingMonths(values.holdingMonths)
+    setMonthlyHoldingCost(values.monthlyHoldingCost)
+    setRenovation(generateBuildToSellRenovation(values.totalBuildCost))
+  }, [buildConfig])
+
+  const resetCustomAmenityArv = useCallback((id: string) => {
     const updated = {
       ...buildConfig,
       customAmenities: buildConfig.customAmenities.map(ca =>
-        ca.id === id ? { ...ca, [field]: value } : ca
+        ca.id === id ? { ...ca, arv: Math.round(ca.cost * CUSTOM_AMENITY_ARV_MULTIPLIER), arvOverridden: false } : ca
       ),
     }
     setBuildConfig(updated)
@@ -1068,50 +1100,77 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
 
             {/* Custom / Miscellaneous Amenities */}
             <div className="mt-3 border-t border-slate-700/50 pt-3">
-              <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold mb-2">Custom / Miscellaneous</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Custom / Miscellaneous</p>
+                <p className="text-[10px] text-slate-600 italic">ARV auto-scales at {Math.round(CUSTOM_AMENITY_ARV_MULTIPLIER * 100)}% of cost</p>
+              </div>
               {buildConfig.customAmenities.map(ca => (
-                <div key={ca.id} className="flex items-center gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={ca.label}
-                    onChange={e => updateCustomAmenity(ca.id, 'label', e.target.value)}
-                    placeholder="e.g. Pool, Outdoor Kitchen, Sauna..."
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
-                  />
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-500 whitespace-nowrap">Cost</span>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
-                      <input
-                        type="number"
-                        value={ca.cost}
-                        onChange={e => updateCustomAmenity(ca.id, 'cost', Number(e.target.value))}
-                        step={1000}
-                        min={0}
-                        className="w-24 bg-slate-900 border border-slate-700 rounded-lg pl-5 pr-2 py-1.5 text-sm text-amber-400 font-medium focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
-                      />
+                <div key={ca.id} className="mb-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={ca.label}
+                      onChange={e => updateCustomAmenity(ca.id, 'label', e.target.value)}
+                      placeholder="e.g. Pool, Outdoor Kitchen, Sauna..."
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
+                    />
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 whitespace-nowrap">Cost</span>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
+                        <input
+                          type="number"
+                          value={ca.cost}
+                          onChange={e => updateCustomAmenity(ca.id, 'cost', Number(e.target.value))}
+                          step={1000}
+                          min={0}
+                          className="w-24 bg-slate-900 border border-slate-700 rounded-lg pl-5 pr-2 py-1.5 text-sm text-amber-400 font-medium focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-500 whitespace-nowrap">ARV</span>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
-                      <input
-                        type="number"
-                        value={ca.arv}
-                        onChange={e => updateCustomAmenity(ca.id, 'arv', Number(e.target.value))}
-                        step={1000}
-                        min={0}
-                        className="w-24 bg-slate-900 border border-slate-700 rounded-lg pl-5 pr-2 py-1.5 text-sm text-emerald-400 font-medium focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30"
-                      />
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 whitespace-nowrap">ARV</span>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">$</span>
+                        <input
+                          type="number"
+                          value={ca.arv}
+                          onChange={e => updateCustomAmenity(ca.id, 'arv', Number(e.target.value))}
+                          step={1000}
+                          min={0}
+                          className={cn(
+                            'w-24 bg-slate-900 border rounded-lg pl-5 pr-2 py-1.5 text-sm font-medium focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500/30',
+                            ca.arvOverridden
+                              ? 'border-amber-500/40 text-amber-300'
+                              : 'border-slate-700 text-emerald-400'
+                          )}
+                        />
+                      </div>
                     </div>
+                    <button
+                      onClick={() => removeCustomAmenity(ca.id)}
+                      className="p-1 text-slate-600 hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => removeCustomAmenity(ca.id)}
-                    className="p-1 text-slate-600 hover:text-red-400 transition-colors shrink-0"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
+                  {/* Override indicator + reset */}
+                  {ca.arvOverridden && (
+                    <div className="flex items-center justify-end gap-1.5 mt-0.5 mr-8">
+                      <span className="text-[10px] text-amber-400/70">ARV overridden</span>
+                      <button
+                        onClick={() => resetCustomAmenityArv(ca.id)}
+                        className="text-[10px] text-slate-500 hover:text-teal-400 flex items-center gap-0.5 transition-colors"
+                      >
+                        <RotateCcw className="w-2.5 h-2.5" /> reset to {Math.round(CUSTOM_AMENITY_ARV_MULTIPLIER * 100)}%
+                      </button>
+                    </div>
+                  )}
+                  {!ca.arvOverridden && ca.cost > 0 && (
+                    <p className="text-[10px] text-slate-600 text-right mr-8 mt-0.5">
+                      auto: {Math.round(CUSTOM_AMENITY_ARV_MULTIPLIER * 100)}% &times; {formatCurrency(ca.cost)} = {formatCurrency(ca.arv)}
+                    </p>
+                  )}
                 </div>
               ))}
               <button
