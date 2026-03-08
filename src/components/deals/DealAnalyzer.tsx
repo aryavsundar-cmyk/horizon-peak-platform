@@ -55,6 +55,8 @@ import { formatCurrency, formatPercent, cn } from '../../lib/utils'
 import type { Deal } from '../../data/store'
 import { useAppState } from '../../data/store'
 import { HORIZON_PEAK_BUSINESS_PLAN } from '../../data/conashaugh-lakes'
+import ProposalGeneratorModal from './ProposalGeneratorModal'
+import type { ProposalData } from '../../lib/proposal-types'
 
 // =============================================================================
 // Types
@@ -646,6 +648,11 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
   }, [])
 
   // ---------------------------------------------------------------------------
+  // Proposal Generator
+  // ---------------------------------------------------------------------------
+  const [proposalModalOpen, setProposalModalOpen] = useState(false)
+
+  // ---------------------------------------------------------------------------
   // Computed Totals
   // ---------------------------------------------------------------------------
   const computed = useMemo(() => {
@@ -788,6 +795,35 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
     if (computed.roi >= 5) return { grade: 'C', label: 'Marginal Return', color: 'text-yellow-400', bg: 'bg-yellow-500/15 border-yellow-500/30' }
     return { grade: 'F', label: 'Not Recommended', color: 'text-red-400', bg: 'bg-red-500/15 border-red-500/30' }
   }, [strategy, computed])
+
+  // ---------------------------------------------------------------------------
+  // Proposal Data Collector
+  // ---------------------------------------------------------------------------
+  const collectProposalData = useCallback((): ProposalData => ({
+    deal,
+    strategy,
+    purchasePrice,
+    afterRepairValue,
+    holdingMonths,
+    monthlyHoldingCost,
+    monthlyRentalIncome,
+    buildConfig: strategy === 'build-to-sell' ? buildConfig : null,
+    buildValues: strategy === 'build-to-sell' ? buildValues : null,
+    renovation,
+    contractors,
+    selectedBank,
+    allBanks: banks,
+    legal,
+    agents,
+    computed,
+    verdict: { grade: verdict.grade, label: verdict.label },
+    timeline: timelineData,
+  }), [
+    deal, strategy, purchasePrice, afterRepairValue, holdingMonths,
+    monthlyHoldingCost, monthlyRentalIncome, buildConfig, buildValues,
+    renovation, contractors, selectedBank, banks, legal, agents,
+    computed, verdict, timelineData,
+  ])
 
   // ---------------------------------------------------------------------------
   // Render
@@ -1679,6 +1715,24 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
           )}
         </div>
       </div>
+
+      {/* ========== Generate Investor Proposal ========== */}
+      <div className="mt-6 flex justify-center">
+        <button
+          onClick={() => setProposalModalOpen(true)}
+          className="flex items-center gap-3 px-8 py-3.5 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-teal-500/25 transition-all hover:shadow-teal-500/40 hover:scale-[1.02]"
+        >
+          <FileText className="w-5 h-5" />
+          Generate Investor Proposal
+        </button>
+      </div>
+
+      {/* Proposal Generator Modal */}
+      <ProposalGeneratorModal
+        open={proposalModalOpen}
+        onClose={() => setProposalModalOpen(false)}
+        data={collectProposalData()}
+      />
     </div>
   )
 }
