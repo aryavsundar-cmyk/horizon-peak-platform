@@ -3,6 +3,7 @@
 
 export interface AppSettings {
   rapidApiKey: string | null
+  rentCastApiKey: string | null
   enabledSources: ('zillow' | 'redfin' | 'realtor')[]
   searchResultsLimit: number
   cacheExpiryMinutes: number
@@ -12,6 +13,7 @@ const SETTINGS_KEY = 'horizon-peak-settings'
 
 const DEFAULT_SETTINGS: AppSettings = {
   rapidApiKey: null,
+  rentCastApiKey: null,
   enabledSources: ['zillow', 'redfin', 'realtor'],
   searchResultsLimit: 50,
   cacheExpiryMinutes: 30,

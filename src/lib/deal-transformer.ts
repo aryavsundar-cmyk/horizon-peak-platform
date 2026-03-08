@@ -18,6 +18,13 @@ export interface RawListing {
   listingId?: string
 }
 
+// Pike County market average $/sqft — used as default ARV estimate before comp analysis
+// Sources: Horizon Peak Business Plan sale comps ($220-$290/sqft), market avg ~$250/sqft
+const REGIONAL_AVG_PPSF = 250
+
+// Default per-acre land value for vacant lots without buildings
+const REGIONAL_LAND_VALUE_PER_ACRE = 500000
+
 /** Transform a raw API listing into a Deal */
 export function transformToDeal(raw: RawListing): Deal {
   const sqft = raw.sqft || 0
@@ -39,7 +46,7 @@ export function transformToDeal(raw: RawListing): Deal {
     yearBuilt: raw.yearBuilt || 0,
     daysOnMarket: raw.daysOnMarket || 0,
     pricePerSqft,
-    estimatedARV: sqft > 0 ? sqft * 250 : (raw.lotSize || 0.25) * 500000,
+    estimatedARV: sqft > 0 ? sqft * REGIONAL_AVG_PPSF : (raw.lotSize || 0.25) * REGIONAL_LAND_VALUE_PER_ACRE,
     estimatedRehab: undefined,
     cashFlow: undefined,
     capRate: undefined,

@@ -198,6 +198,11 @@ export default function Home() {
 function SettingsView() {
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
+  const [rentCastKey, setRentCastKey] = useState('')
+  const [showRentCastKey, setShowRentCastKey] = useState(false)
+  const [rentCastSaved, setRentCastSaved] = useState(false)
+  const [rentCastValidating, setRentCastValidating] = useState(false)
+  const [rentCastValid, setRentCastValid] = useState<boolean | null>(null)
   const [saved, setSaved] = useState(false)
   const [enabledSources, setEnabledSources] = useState<AppSettings['enabledSources']>(['zillow', 'redfin', 'realtor'])
   const [validating, setValidating] = useState(false)
@@ -206,6 +211,7 @@ function SettingsView() {
   useEffect(() => {
     const s = getSettings()
     if (s.rapidApiKey) setApiKey(s.rapidApiKey)
+    if (s.rentCastApiKey) setRentCastKey(s.rentCastApiKey)
     setEnabledSources(s.enabledSources)
   }, [])
 
@@ -240,7 +246,32 @@ function SettingsView() {
     }
   }
 
+  const handleSaveRentCastKey = () => {
+    saveSettings({ rentCastApiKey: rentCastKey || null })
+    setRentCastSaved(true)
+    setTimeout(() => setRentCastSaved(false), 3000)
+  }
+
+  const handleValidateRentCastKey = async () => {
+    if (!rentCastKey) return
+    setRentCastValidating(true)
+    setRentCastValid(null)
+    try {
+      const res = await fetch(
+        `/api/comps?address=100+Main+St,+Milford,+PA+18337`,
+        { headers: { 'x-rentcast-key': rentCastKey } }
+      )
+      // 200 = success, 404 = address not found (key is still valid), 429 = rate limited (key valid)
+      setRentCastValid(res.ok || res.status === 404 || res.status === 429)
+    } catch {
+      setRentCastValid(false)
+    } finally {
+      setRentCastValidating(false)
+    }
+  }
+
   const hasKey = !!apiKey
+  const hasRentCastKey = !!rentCastKey
 
   const dataSources = [
     { name: 'Zillow', key: 'zillow' as const, desc: 'Zestimate, listings, and market data', api: 'Zillow Working API' },
@@ -355,6 +386,93 @@ function SettingsView() {
         </div>
       </div>
 
+      {/* Comparable Sales API (RentCast) */}
+      <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-xl border border-blue-500/20 p-6 mb-6 shadow-lg shadow-blue-500/5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+            <BarChart3 className="w-5 h-5 text-blue-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">Comparable Sales API</h3>
+            <p className="text-xs text-slate-400">Connect to RentCast for automated comparable sales analysis and AVM data</p>
+          </div>
+        </div>
+
+        {/* RentCast API Key */}
+        <div className="mb-4">
+          <label className="block text-xs text-slate-400 mb-1.5 font-medium">RentCast API Key</label>
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <input
+                type={showRentCastKey ? 'text' : 'password'}
+                value={rentCastKey}
+                onChange={(e) => { setRentCastKey(e.target.value); setRentCastSaved(false); setRentCastValid(null) }}
+                placeholder="Enter your RentCast API key..."
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/30 pr-10"
+              />
+              <button
+                onClick={() => setShowRentCastKey(!showRentCastKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                {showRentCastKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <button
+              onClick={handleValidateRentCastKey}
+              disabled={!rentCastKey || rentCastValidating}
+              className="px-3 py-2.5 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-600 border border-slate-600 rounded-lg text-xs font-medium text-slate-300 transition-colors"
+            >
+              {rentCastValidating ? 'Testing...' : 'Test'}
+            </button>
+            <button
+              onClick={handleSaveRentCastKey}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-colors"
+            >
+              Save
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Get a free API key (50 calls/month) at{' '}
+            <a href="https://app.rentcast.io/app/api" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+              app.rentcast.io
+            </a>
+            . Used for comparable sales analysis in the Deal Analyzer.
+          </p>
+
+          {/* Status messages */}
+          {rentCastSaved && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" /> RentCast API key saved
+            </div>
+          )}
+          {rentCastValid === true && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" /> Key verified successfully
+            </div>
+          )}
+          {rentCastValid === false && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-red-400">
+              <AlertCircle className="w-4 h-4" /> Key validation failed. Check your key.
+            </div>
+          )}
+        </div>
+
+        {/* Status Indicator */}
+        <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/60 border border-slate-700/50">
+          <div className="flex-1">
+            <span className="text-sm font-medium text-white">RentCast AVM & Comps</span>
+            <span className="text-xs text-slate-500 ml-2">Property valuations and comparable sales</span>
+          </div>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
+            hasRentCastKey
+              ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+              : 'bg-slate-700 text-slate-500 border-slate-600'
+          }`}>
+            {hasRentCastKey ? 'Active' : 'Not Configured'}
+          </span>
+        </div>
+      </div>
+
       {/* Company Profile */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
         <h3 className="text-lg font-bold text-white mb-4">Company Profile</h3>
@@ -385,6 +503,7 @@ function SettingsView() {
           { name: 'Zillow', status: hasKey && enabledSources.includes('zillow') ? 'Connected' : 'Configure Above', desc: 'Listings, Zestimate, market trends' },
           { name: 'Redfin', status: hasKey && enabledSources.includes('redfin') ? 'Connected' : 'Configure Above', desc: 'Property listings and sold comps' },
           { name: 'Realtor.com', status: hasKey && enabledSources.includes('realtor') ? 'Connected' : 'Configure Above', desc: 'Agent network and listings' },
+          { name: 'RentCast', status: hasRentCastKey ? 'Connected' : 'Configure Above', desc: 'Comparable sales and automated valuations (AVM)' },
           { name: 'URL Import', status: 'Always Available', desc: 'Paste any listing URL to import' },
           { name: 'FRED API', status: 'Available', desc: 'Federal Reserve economic data' },
           { name: 'Census Bureau', status: 'Available', desc: 'Demographics and housing stats' },

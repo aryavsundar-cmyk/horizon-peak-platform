@@ -56,6 +56,7 @@ import type { Deal } from '../../data/store'
 import { useAppState } from '../../data/store'
 import { HORIZON_PEAK_BUSINESS_PLAN } from '../../data/conashaugh-lakes'
 import ProposalGeneratorModal from './ProposalGeneratorModal'
+import CompAnalysisPanel from './CompAnalysisPanel'
 import type { ProposalData } from '../../lib/proposal-types'
 
 // =============================================================================
@@ -924,6 +925,15 @@ export default function DealAnalyzer({ deal, onBack }: DealAnalyzerProps) {
           )}
         </div>
       </div>
+
+      {/* ========== Comparable Sales Analysis ========== */}
+      <CompAnalysisPanel
+        deal={deal}
+        strategy={strategy}
+        afterRepairValue={afterRepairValue}
+        onApplyARV={setAfterRepairValue}
+        buildConfig={strategy === 'build-to-sell' ? buildConfig : null}
+      />
 
       {/* ========== Build-to-Sell Property Configuration ========== */}
       {strategy === 'build-to-sell' && (
